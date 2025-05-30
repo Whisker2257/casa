@@ -1,0 +1,65 @@
+/* /Users/nashe/casa/frontend/src/styles/global.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────── Palette ─────────── */
+:root {
+  --primary: #818cf8;       /* brighter indigo-400 */
+  --primary-dark: #6366f1;  /* indigo-500 */
+  --secondary: #a1a1aa;
+  --background: #0b0c0d;
+  --surface: #18191b;
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --border: #27272a;
+  --accent: #8b5cf6;
+  --success: #22c55e;
+  --warning: #facc15;
+  --error:   #ef4444;
+}
+
+body {
+  @apply bg-background text-text-primary antialiased;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 { @apply font-bold text-text-primary; }
+h1 { @apply text-4xl md:text-5xl lg:text-6xl; }
+h2 { @apply text-3xl md:text-4xl; }
+h3 { @apply text-2xl md:text-3xl; }
+
+/* Buttons */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-md font-medium
+         transition duration-200 select-none focus:outline-none
+         focus:ring-2 focus:ring-primary shadow-sm;
+}
+.btn-primary   { @apply bg-primary text-white hover:bg-primary-dark; }
+.btn-secondary { @apply bg-background border border-white/20 text-white hover:bg-white hover:text-background; }
+.btn-outline   { @apply border border-border text-text-primary hover:border-primary hover:text-primary; }
+.btn-sm        { @apply px-3 py-1 text-sm; }
+
+/* Inputs */
+.input          { @apply bg-surface text-text-primary placeholder-text-secondary rounded-md px-3 py-2 w-full; }
+.input-bordered { @apply border border-border focus:border-primary focus:ring-0; }
+
+/* Cards */
+.card { @apply bg-surface border border-border rounded-lg p-6 shadow-lg; }
+
+/* Navigation */
+.nav-link {
+  @apply text-primary hover:text-white transition-colors duration-200;
+}
+
+/* Utility */
+.text-gradient { @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent; }
+.grid-auto-fit { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap:1.5rem; }
+.hover-lift    { @apply transform transition duration-200 hover:-translate-y-1 hover:shadow-2xl; }
+
+/* Scrollbar */
+::-webkit-scrollbar       { width: 8px; }
+::-webkit-scrollbar-track { @apply bg-background; }
+::-webkit-scrollbar-thumb { @apply bg-primary/40 rounded-full hover:bg-primary/60; }

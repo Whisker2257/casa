@@ -1,0 +1,387 @@
+\title{
+Towards Adaptive Self-Improvement for Smarter Energy Systems
+}
+
+\author{
+Alexander Sommer \\ alexander.sommer@fau.de \\ Department of Computer Science 7 \\ Friedrich-Alexander-Universität \\ Erlangen-Nürnberg \\ Erlangen, Germany
+}
+
+\author{
+Peter Bazan \\ peter.bazan@fau.de \\ Department of Computer Science 7 \\ Friedrich-Alexander-Universität \\ Erlangen-Nürnberg \\ Erlangen, Germany
+}
+
+\author{
+Jonathan Fellerer \\ jonathan.fellerer@fau.de \\ Department of Computer Science 7 \\ Friedrich-Alexander-Universität \\ Erlangen-Nürnberg \\ Erlangen, Germany
+}
+
+\author{
+Behnam Babaeian \\ behnam.babaeian@fau.de \\ Department of Computer Science 7 \\ Friedrich-Alexander-Universität \\ Erlangen-Nürnberg \\ Erlangen, Germany
+}
+
+\author{
+Reinhard German \\ reinhard.german@fau.de \\ Department of Computer Science 7 \\ Friedrich-Alexander-Universität \\ Erlangen-Nürnberg \\ Erlangen, Germany
+}
+
+\begin{abstract}
+This paper introduces a hierarchical framework for decision-making and optimization, leveraging Large Language Models (LLMs) for adaptive code generation. Instead of direct decision-making, LLMs generate and refine executable control policies through a metapolicy that guides task generation and a base policy for operational actions. Applied to a simplified microgrid scenario, the approach achieves up to 15 percent cost savings by iteratively improving battery control strategies. The proposed methodology lays a foundation for integrating LLM-based tools into planning and control tasks, offering adaptable and scalable solutions for complex systems while addressing challenges of uncertainty and reproducibility.
+\end{abstract}
+
+\section*{CCS Concepts}
+- Software and its engineering \(\rightarrow\) Search-based software engineering; - Computing methodologies \(\rightarrow\) Nonmonotonic, default reasoning and belief revision; Modeling methodologies;
+- Hardware \(\rightarrow\) Smart grid.
+
+\section*{Keywords}
+
+Large Language Models, Code Generation, Hierarchical DecisionMaking, Smart Energy Systems, Self-Improving Systems, Microgrid Control, Battery Storage Management, Stochastic Optimization, Meta-Learning
+
+\section*{Disclaimer}
+
+This is a slightly revised version of the manuscript submitted to ACM e-Energy 2025. For clarity, minor adjustments have been made to the version currently under peer review. Further changes or updates may be made prior to final publication and no guarantee is made as to the completeness or accuracy of the information presented. Any views expressed herein are solely those of the authors and do not necessarily reflect the views of the affiliated institutions or sponsors. If you have any questions or comments, please contact alexander.sommer@fau.de.
+
+\section*{1 Introduction}
+
+Modern energy systems are becoming increasingly complex: Distributed energy generation, storage integration, and dynamic load profiles necessitate advanced control and decision-making methods. In this context, Large Language Models (LLMs) are gaining significance in research, primarily serving in energy simulation [3,23] and expert guidance for high-level control strategies [4, 21]. However, for direct usage as energy controllers, they show fundamental limitations in providing robust and generalizable solutions, especially when tasks require advanced algorithmic capabilities [17].
+
+While approaches such as chain-of-thought prompting [20] can improve performance, LLMs remain inefficient at scaling for highdimensional problems and lack formally verifiable correctness guarantees [5, 22]. On the other hand, LLMs excel at converting optimization tasks into software code, as demonstrated across HVAC control, electrical vehicle charging, and power systems [8, 9, 11]. Recent advances show how LLMs can formulate solutions as abstract hypotheses before programmatic implementation and verification [19], generate adaptable Python code for decision-making tasks [14], and employ agent-driven structures for precise strategy generation through collaborative reasoning and debugging [10]. Recent work by Ishida et al. [7] demonstrates iterative LLM-driven code optimization for autonomous driving, but focuses on task-specific improvements rather than providing a generalizable theoretical foundation for policy development.
+
+We introduce a theoretical framework for adaptive self-improvement of code-generated controllers in smart energy systems. Our hierarchical approach leverages LLMs' code generation capabilities while addressing their limitations in direct control applications through a two-level architecture: a meta-policy for high-level task generation and refinement, combined with a base-policy for operational actions. Demonstrated in the energy domain through battery control strategies in a microgrid scenario, our framework achieves 15 percent cost savings while establishing a methodology that can be extended beyond energy systems to other sequential decisionmaking tasks. This approach offers systematic controller refinement that addresses challenges of stochasticity and reproducibility.
+
+\section*{2 Mathematical Formulation}
+
+In this chapter, we describe the underlying stochastic optimization problem using Powell's Universal Canonical Model [15, 16]. We then specify how the hierarchical decision-making structure (metapolicy and base policy) is embedded in this formulation.
+
+\subsection*{2.1 Universal Canonical model}
+
+The central problem is to find an optimal policy configuration \(\pi \in \Pi\) that solves the following problem:
+\[
+\max _{\pi} E \left\{\sum_{t=0}^{T} C_{t}\left(S_{t}, X_{t}^{\pi}\left(S_{t}\right), W_{t+1}\right) \mid S_{0}\right\}
+\]
+where the system dynamics are described by the transition equation
+\[
+S_{t+1}=S^{M}\left(S_{t}, x_{t}, W_{t+1}\right)
+\]
+
+The variables and functions are defined as follows:
+- \(S_{t}\) : the state variable containing all relevant system information at time \(t\),
+- \(X_{t}^{\pi}\left(S_{t}\right)\) : the policy that maps each state to a decision variable \(x_{t} \in X _{t}\) with \(\pi=\{f, \theta\}\) where \(f \in F\) is the function's type and \(\theta \in \Theta^{f}\) are the corresponding parameters.
+- \(W_{t+1}\) : the exogenous information available at time \(t+1\), which may depend on the current state \(S_{t}\) and/or the decision \(x_{t}\),
+- \(S^{M}(\cdot)\) : the transition function describing the system's state temporal evolution, and
+- \(C_{t}(\cdot)\) : the objective function evaluating the contribution or costs of the chosen decision.
+A policy configuration \(\pi\) is sought to find a sequence \(\left\{x_{0}, x_{1}, \ldots\right.\), \(\left.x_{T}\right\}\) to maximize the expected value of cumulative contributions (or minimize costs) over the planning horizon \(T\).
+
+\subsection*{2.2 Hierarchical decision-making structure}
+
+Subsequently, the standard model described in Section 2.1 is extended to a two-stage (nested) policy architecture in which a metapolicy and a base-policy interact. The goal is to generate executable software code at the base-level using an LLM and iteratively improve the code through a loop at the meta-level, so that the operational base policy for control in the energy system is continuously optimized. Variables that refer to the meta-policy level are distinguished from those at the base-policy level by a hat symbol.
+
+\subsection*{2.2.1 Policy-Levels.}
+
+Meta-level: The meta-policy controls by \(\hat{\pi}\) how and when new basic policy variants \(\pi_{i}\) and the associated software code are generated. For this purpose, we define a meta-decision in iteration step \(i\) as follows:
+\[
+\hat{x}_{i}=\hat{X}_{i}^{\hat{\pi}}\left(\hat{S}_{i} \mid \hat{\theta}_{i}\right)
+\]
+
+Here, \(\hat{S}_{i}\) describes the relevant meta-state (i.e., history of control performance, cost trajectories, runtimes, quality metrics for the code, etc.) and \(\hat{\theta}_{ i }\) the meta-policy related parameters. The metadecision variable \(\hat{x}_{i}\) contains information about \(\pi_{i}\) and thereby points out in which form the LLM should generate new software (e.g., conversion of a heuristic into a non-linear model). Similarly, it can also include which hyperparameters should be adjusted in the
+code generation process (e.g., an increased temperature for more exploration).
+
+Base-Level: The base-policy encompasses the actual decision logic at time \(t\) and iteration step \(i\) whose outcome directly affects the physical energy system. For this, we define a decision function
+\[
+x_{t}=X_{t}^{\pi_{i}}\left(S_{t} \mid \theta_{i}\right)
+\]
+
+The state \(S_{t}\) here refers to the operational energy system (e.g., storage levels, consumption figures, generation profiles), so that \(x_{t}\) represents an executive action that directly intervenes in the environment influenced by its decision parameters \(\theta_{i}\).
+
+To construct the base-policy \(X_{t}^{\pi_{i}}\), we define a function \(A ^{L L M}\) that leverages an LLM to generate a programmatic code snippet \(c_{i} \in C\) based on meta-decision \(\hat{x}_{i}\), prior base-policy \(X_{t}^{\pi_{i-1}}\) and previous parameters \(\theta_{i-1}\) :
+\[
+c_{i}= A ^{L L M}\left(\hat{x}_{i}, X_{t}^{\pi_{i-1}}, \theta_{i-1}\right)
+\]
+
+The generated code snippet \(c_{i}\) directly contains the base-policy code but requires cleaning and validation. We apply a mapping \(\Phi\) to filter out extraneous or erroneous content from the raw LLM output, ensuring a well-formed policy:
+\[
+\left(X_{t}^{\pi_{i}}, \theta_{i}\right)=\Phi\left(c_{i}\right) \text { with the projection } X_{t}^{\pi_{i}}=\Phi_{1}\left(c_{i}\right)
+\]
+
+The separation of \(\Phi\left(c_{i}\right)\) and the LLM ensures that \(X_{t}^{\pi_{i}}\) is an explicit, code-based policy function. In contrast, Wang et al. [18] propose a direct-LLM-policy where the LLM itself acts as \(X_{t}^{L L M}\) and determines decisions at each step, thereby keeping the policy implicit within the LLM.
+2.2.2 Meta- and base-policy classes. Both meta- and base-level policies can be categorized into one or more of four fundamental policy classes [15, 16]. While the base-level policy class is determined through LLM-generated code, the meta-level allows flexible selection based on the specific requirements. Examples for meta-level policies include:
+- Cost Function Approximations (CFA): control of LLM hyperparameters such as temperature and top-k sampling that enable a style specific code generation, e.g., more creativity in exploring unconventional solutions
+- Value Function Approximations (VFA): reinforcement learning to learn which sequence of prompts has the highest probability of success for policy code improvement
+- Policy Function Approximations (PFA): parametric functions that directly map system states to discrete prompt selection
+- Direct Lookahead Approximations (DLA): Monte Carlo Tree Search (MCTS) for exploring various prompt variants and their potential impact on code quality
+In a special case, we can instantiate the meta-policy \(\hat{X}^{L L M}\) as an LLM that provides high-level strategic directions to a separate function \(A ^{L L M}\), which leverages its own LLM instance for code generation. This meta-policy setup falls into the class of Policy Function Approximation (PFA), as the transformer architecture serves as a universal function approximator capable of representing any polynomial-time policy function with high accuracy when sufficiently scaled [12].
+2.2.3 Objective Function for the Nested Policy. The objective is an adaptive development of the base-policy towards an optimal behaviour over the entire planning horizon; to this end, the metapolicy uses the LLM to continuously control the generation and adjustment of the associated base-policy variants.
+\[
+\max _{\pi_{i}} E \{\sum_{t=t_{i}}^{t_{i}+T / n} C(S_{t}, \underbrace{\Phi_{1}\left(c_{i}\right)}_{X_{t}^{\pi_{i}}}\left(S_{t}\right), W_{t+1}) \mid S_{0}, \hat{S}_{0}\} .
+\]
+
+Two optimization stages take place here, based on the initial values \(S_{0}, \hat{S}_{0}\) of the respective level:
+- Base-level: For a given base-policy representation \(X_{t}^{\pi_{i}}\) in the form of software code, \(x_{t}\) is determined in order to control the energy system as optimally as possible in the current time \(t\).
+- Meta-level: \(\hat{X}_{i}^{\hat{\pi}}\) determines how \(X_{t}^{\pi_{i}}\) evolves from one iteration \(i\) to the next. Notably, multiple time steps \(t\) may occur before transitioning from iteration \(i\) to \(i+1\). Over the planning horizon \(T\) (divided into \(n\) segments for \(i=1, \ldots, n\) ), this approach continuously adapts the base-policy, aiming to maximize contribution or minimize costs.
+The overarching transition of the system state can be developed analogously to equation (1). It holds that:
+\[
+S_{t+1}=S^{M}(S_{t}, \underbrace{\Phi_{1}\left(c_{i}\right)\left(S_{t}\right)}_{x_{t}}, W_{t+1})
+\]
+
+The exogenous information \(W_{t+1}\) encompasses uncertainties both from the physical system (e.g., demand fluctuations, outages) and from the stochasticity induced by the LLM generation itself. This concerns, on one hand, variations in the generated code despite the same prompt, but also the ambiguity of the base-policy information \(\pi\) in the form of text or software code. These uncertainties affect the subsequent state \(S_{t+1}\) and, in turn, the meta-policy, which then modifies the code again in the next time step.
+
+The presented hierarchy enables an iterative approach in which the LLM can both, exploratively generate new control strategies or exploitatively refine existing rule sets. In this way, conventional operative decisions (base-policy) are combined with an overarching improvement loop (meta-policy), fostering continuous selfimprovement with an adaptive scheme of the entire system.
+
+\section*{3 Algorithmic Implementation}
+
+This section introduces a compact hierarchical decision-making framework with a meta-policy for high-level guidance and a basepolicy for operational decisions. The methodology is demonstrated through a simulation of a simplified microgrid, showcasing the practical application of the proposed structure.
+
+\subsection*{3.1 Example}
+
+The following section illustrates the hierarchical concept and demonstrates its application through a simulation, as illustrated in Figure 1. The simulation is based on a simplified microgrid consisting of a battery, a demand, an energy market, and an energy grid. The battery is controlled by a controller that makes decisions regarding
+![](https://cdn.mathpix.com/cropped/2025_05_20_40e796df7e31c0d4a505g-3.jpg?height=890&width=747&top_left_y=330&top_left_x=1128)
+
+Figure 1: System architecture for hierarchical decisionmaking framework in energy domain
+charging and discharging behavior. The core of this controller is a base-policy that is generated by a LLM in form of Python code. The objective is to minimize the total cost of meeting the demand.
+3.1.1 Base-level environment. The battery is approximated by an idealized model with defined charging capacities and an upper threshold. The decision variable \(x_{t}\) represents the charging and discharging activity of the battery at a certain point in time and is defined by the controller policy \(X_{t}^{\pi_{i}}\). The relevant system information \(S_{t}\) includes the available state of charge \(E_{\text {batter }}\), whereby the constraints of charging power \(P_{c}\) are negligible due to the large time intervals. \(S^{M}\) captures the new state \(S_{t+1}\) via the rate of change of the stored energy and the amount of charge.
+
+Market conditions are provided as a stochastic time series, while the demand is simplified and assumed to be constant. Both are aggregated into \(W_{t+1}\), which includes demand and market price. The demand can be met either directly from the market, from the stored energy in the battery, or through a combination of both. The market, battery, and demand are interconnected in a line topology without losses. For more detailed information on the model, we refer to the Appendix.
+
+Starting from the innermost layer, the cost function evaluates the imported or exported energy quantity and the market costs at the end of each simulation run. Those are represented as the vectors containing the states \(S\), exogenous variables \(W\) and taken actions \(x\). If the policy is successfully executed, these variables are passed to the higher level meta-layer as \(\hat{S}\) for further base-policy optimization. In case of an error, the result handler will forward
+this information to the code generator directly to initiate possible adjustments.
+3.1.2 Meta-level. In the higher-level loop, the meta-policy \(\hat{X}_{i}^{\hat{\pi}}\), embedded within the task generator, is applied to \(\hat{S}_{i}\). Based on its decision logic, the meta-policy creates a task description \(\hat{x}_{i}\). This task description is additionally enriched with context information and a Python reference signature so that it can be executed in the simulation environment. All three together form a coherent prompt that is passed on to the code generator and the large language model it contains. The objective of this process is to generate an output \(c_{i}\) that is converted by \(\Phi\) into a new and improved base-policy \(X_{t}^{\pi_{i}}\) and/or parameter \(\theta_{i}\).
+
+In this example, the meta-policy is represented by an LLM by \(\hat{X}_{i}^{\text {LLM }}\), which dynamically generates the task description of the prompt for the code generating LLM (see Appendix C.2) to improve the controller policy based on meta-level system information \(\hat{S}_{i}\), containing environment data \(S_{t}\) and costs \(C\) from the last simulation run. This process fosters agentic behavior through the interaction of distinct roles, namely the Task Generator and Code Generator, enabling a dynamic and adaptive problem-solving approach [13]. The model used is Deepseek-R1, an open-source language model trained with reinforcement learning, known for its strong logical reasoning and problem-solving capabilities [2]. While this reasoning model is responsible for the high-level task description, Qwen2.5 Coder 32B Instruct [6] is employed for code generation tasks, where it excels with state-of-the-art performance in several coding benchmarks. The technical specifications of both models are listed in the Appendix.
+
+\subsection*{3.2 Results}
+
+This section presents the outcomes of the simulation, highlighting the efficacy of the hierarchical control framework in managing battery operations within a simplified microgrid. The analysis emphasizes both the evolution of the control strategies and the resulting performance improvements, as measured by the state of charge dynamics and cost optimization.
+![](https://cdn.mathpix.com/cropped/2025_05_20_40e796df7e31c0d4a505g-4.jpg?height=288&width=752&top_left_y=1721&top_left_x=242)
+
+Figure 2: Development of cost savings over several iteration.
+
+Figure 2 illustrates the total costs across multiple iterations of the optimization process. The steady decline in costs reflects the iterative refinement of the policy generated by the large language model.
+
+The chosen meta-policy, which dynamically prompts the task description, drives an evolution from simpler to more complex approaches. Early implementations relied on basic moving average calculations and binary trading decisions. Over time, more advanced mechanisms were introduced, including hysteresis thresholds and
+adaptive parameters based on battery levels and market volatility, enabling dynamic adaptation to market conditions.
+
+The most effective strategy achieves cost savings of 15 percent in battery operation compared to the reference scenario in which the battery is switched off. A detailed record of the actions taken and the associated storage level can be found in Figure 4 in the Appendix.
+
+It is also worth mentioning that our framework avoids the continuous use of resource-intensive reasoning models such as DeepseekR1 over the planning horizon. While chain-of-thought mechanisms increase costs by generating more tokens for improved decision quality, the fine-tuned Qwen model consumes significantly fewer resources.
+
+However, it should be noted that these experiments are still at an early stage and the diagram shown represents a best-case scenario of the experiments carried out. Across multiple experimental runs, the cost trajectories exhibit significant variability and are highly dependent on the choices made for generating task descriptions. Further research is needed to assess the impact of the meta-policy on generating the base policies. Additionally, future studies should evaluate the alignment between the base policy chosen by the LLM and the policy selected and implemented by a domain expert.
+
+\section*{4 Conclusion}
+
+This work presents a novel hierarchical decision-making and optimization process for energy systems where an LLM generates executable control software. The approach centers on a meta-policy that governs the generation, testing and refinement of software variants, while the generated base-policy handles operational system control, notably avoiding continuous use of resource-intensive reasoning models over the planning horizon.
+
+We demonstrated how LLM agents can bridge high-level task descriptions with low-level code generation in microgrid battery control, enabling dynamic strategy refinement under varying conditions. Here our approach achieved cost reductions of up to 15 percent through meta-policy-guided algorithmic improvements.
+
+Our experiments indicate that system performance critically depends on the meta-policy's ability to generate effective tasks for code generation. The stochastic nature of current LLMs necessitates mechanisms for ensuring result consistency and reproducibility. Key open research questions include finding the optimal balance between exploration of new code structures and exploitation of promising solutions.
+
+Future work should investigate scalability and performance for multiple meta-policies compared to expert-designed policies. Critical areas include formal verification procedures and risk assessment to ensure correctness and robustness of generated policies. For complex systems, precise context modeling is crucial to capture the component relationships and thereby improve the output quality.
+
+While our initial focus was on energy systems, the underlying principles of automated policy generation and adaptive refinement can be extended to other domains. This enables broad applicability across various sequential decision-making tasks. With more powerful and deterministic language models expected to emerge, we anticipate diverse applications across industrial and academic practice.
+
+\section*{References}
+[1] 2025. OpenRouter. https://openrouter.ai.
+[2] DeepSeek-AI, Daya Guo, Dejian Yang, Haowei Zhang, and and others. 2025. DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning. https://doi.org/10.48550/arXiv.2501.12948 arXiv:2501.12948 [cs]
+[3] Gabriel Dengler, Peter Bazan, Reinhard German, Pooia Lalbakhsh, and Ariel Liebmann. 2023. A Conversational Human-Computer Interface for Smart Energy System Simulation Environments. In 2023 Winter Simulation Conference (WSC). 2978-2989. https://doi.org/10.1109/WSC60868.2023.10408707
+[4] Mathyas Giudici, Luca Padalino, Giovanni Paolino, Ilaria Paratici, Alexandru Ionut Pascu, and Franca Garzotto. 2024. Designing Home Automation Routines Using an LLM-Based Chatbot. Designs 8, 3 (June 2024), 43. https: //doi.org/10.3390/designs8030043
+[5] Sen Huang, Kaixiang Yang, Sheng Qi, and Rui Wang. 2024. When Large Language Model Meets Optimization. https://doi.org/10.48550/arXiv.2405.10098 arXiv:2405.10098
+[6] Binyuan Hui, Jian Yang, Zeyu Cui, Jiaxi Yang, Dayiheng Liu, Lei Zhang, Tianyu Liu, Jiajun Zhang, Bowen Yu, Keming Lu, Kai Dang, Yang Fan, Yichang Zhang, An Yang, Rui Men, Fei Huang, Bo Zheng, Yibo Miao, Shanghaoran Quan, Yunlong Feng, Xingzhang Ren, Xuancheng Ren, Jingren Zhou, and Junyang Lin. 2024. Qwen2.5-Coder Technical Report. https://doi.org/10.48550/arXiv.2409.12186 arXiv:2409.12186 [cs]
+[7] Shu Ishida, Gianluca Corrado, George Fedoseev, Hudson Yeo, Lloyd Russell, Jamie Shotton, João F. Henriques, and Anthony Hu. 2024. LangProp: A Code Optimization Framework Using Large Language Models Applied to Driving. https://doi.org/10.48550/arXiv.2401.10314 arXiv:2401.10314 [cs]
+[8] Ming Jin, Bilgehan Sel, Fnu Hardeep, and Wotao Yin. 2023. A Human-on-theLoop Optimization Autoformalism Approach for Sustainability. https://doi.org/ 10.48550/arXiv.2308.10380 arXiv:2308.10380 [cs]
+[9] Ming Jin, Bilgehan Sel, Fnu Hardeep, and Wotao Yin. 2024. Democratizing Energy Management with LLM-Assisted Optimization Autoformalism. In 2024 IEEE International Conference on Communications, Control, and Computing Technologies for Smart Grids (SmartGridComm). 258-263. https://doi.org/10.1109/ SmartGridComm60555.2024.10738100
+[10] Jierui Li, Hung Le, Yingbo Zhou, Caiming Xiong, Silvio Savarese, and Doyen Sahoo. 2024. CodeTree: Agent-guided Tree Search for Code Generation with Large Language Models. https://doi.org/10.48550/arXiv.2411.04329 arXiv:2411.04329
+[11] Ran Li, Chuanqing Pu, Junyi Tao, Canbing Li, Feilong Fan, Yue Xiang, and Sijie Chen. 2023. LLM-based Frameworks for Power Engineering from Routine to Novel Tasks. https://doi.org/10.48550/arXiv.2305.11202 arXiv:2305.11202 [cs]
+[12] Zhiyuan Li, Hong Liu, Denny Zhou, and Tengyu Ma. 2024. Chain of Thought Empowers Transformers to Solve Inherently Serial Problems. arXiv:2402.12875
+[13] Yuchi Liu, Jaskirat Singh, Gaowen Liu, Ali Payani, and Liang Zheng. 2024. Towards Hierarchical Multi-Agent Workflows for Zero-Shot Prompt Optimization. https://doi.org/10.48550/arXiv.2405.20252 arXiv:2405.20252 [cs]
+[14] Dang Nguyen, Viet Dac Lai, Seunghyun Yoon, Ryan A. Rossi, Handong Zhao, Ruiyi Zhang, Puneet Mathur, Nedim Lipka, Yu Wang, Trung Bui, Franck Dernoncourt, and Tianyi Zhou. 2024. DynaSaur: Large Language Agents Beyond Predefined Actions. https://doi.org/10.48550/arXiv.2411.01747 arXiv:2411.01747
+[15] Warren B. Powell. 2019. A Unified Framework for Stochastic Optimization. European fournal of Operational Research 275, 3 (June 2019), 795-821. https: //doi.org/10.1016/j.ejor.2018.07.014
+[16] Warren B. Powell. 2022. Reinforcement Learning and Stochastic Optimization: A Unified Framework for Sequential Decisions. Wiley, Hoboken, New Jersey.
+[17] Karthik Valmeekam, Kaya Stechly, Atharva Gundawar, and Subbarao Kambhampati. 2024. Planning in Strawberry Fields: Evaluating and Improving the Planning and Scheduling Capabilities of LRM O1. https://doi.org/10.48550/ arXiv.2410.02162 arXiv:2410.02162 [cs]
+[18] Chaojie Wang, Yanchen Deng, Zhiyi Lv, Zeng Liang, Jujie He, Shuicheng Yan, and An Bo. 2024. Q*: Improving Multi-step Reasoning for LLMs with Deliberative Planning. https://doi.org/10.48550/arXiv.2406.14283 arXiv:2406.14283 [cs]
+[19] Ruocheng Wang, Eric Zelikman, Gabriel Poesia, Yewen Pu, Nick Haber, and Noah D. Goodman. 2024. Hypothesis Search: Inductive Reasoning with Language Models. https://doi.org/10.48550/arXiv.2309.05660 arXiv:2309.05660
+[20] Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Brian Ichter, Fei Xia, Ed Chi, Quoc Le, and Denny Zhou. 2023. Chain-of-Thought Prompting Elicits Reasoning in Large Language Models. https://doi.org/10.48550/arXiv.2201.11903 arXiv:2201.11903 [cs]
+[21] Tong Xiao and Peng Xu. 2024. Exploring Automated Energy Optimization with Unstructured Building Data: A Multi-Agent Based Framework Leveraging Large Language Models. Energy and Buildings 322 (Nov. 2024), 114691. https: //doi.org/10.1016/j.enbuild.2024.114691
+[22] Chengrun Yang, Xuezhi Wang, Yifeng Lu, Hanxiao Liu, Quoc V. Le, Denny Zhou, and Xinyun Chen. 2024. Large Language Models as Optimizers. arXiv:2309.03409
+[23] Hanqing Yang, Marie Siew, and Carlee Joe-Wong. 2024. An LLM-Based Digital Twin for Optimizing Human-in-the Loop Systems. https://doi.org/10.48550/ arXiv.2403.16809 arXiv:2403.16809 [eess]
+
+\section*{A Algorithm}
+
+The procedure within the hierarchical decision structure can be concisely presented as follows:
+```
+Algorithm 1 Sequence of the hierarchical decision structure
+    Initialize \(S_{0}, \hat{S}_{0}, \theta_{0}, X_{t}^{\pi_{0}}\)
+    for each meta step \(i=0,1, \ldots, n\) do
+        if \(i>0\) then
+            \(\hat{x}_{i} \leftarrow \hat{X}_{i}^{\hat{\pi}}\left(\hat{S}_{i}, \hat{\theta}_{ i }\right)\)
+            \(c_{i} \leftarrow A ^{L L M}\left(\hat{x}_{i}, X_{t}^{\pi_{i-1}}, \theta_{i-1}\right)\)
+            \(\left(X_{t}^{\pi_{i}}, \theta_{i}\right) \leftarrow \Phi\left(c_{i}\right)\)
+        end if
+        for each time step \(t=t_{i}, \ldots, t_{i}+T / n\) do
+            \(x_{t} \leftarrow X_{t}^{\pi_{i}}\left(S_{t} \mid \theta_{i}\right)\)
+            Execute \(x_{t}\) on the energy system
+            Observe \(W_{t+1}\)
+            \(S_{t+1} \leftarrow S^{M}\left(S_{t}, x_{t}, W_{t+1}\right)\)
+        end for
+        Update \(\hat{S}_{i+1}\) with new metrics
+    end for
+```
+
+\section*{B System Models}
+
+\section*{B. 1 Battery Storage Model}
+
+The dynamics of a lossless battery storage system are described by the following equation:
+\[
+\frac{d E_{\text {battery }}}{d t}=P_{c}
+\]
+where \(E_{\text {battery }}\) represents the stored energy in the battery, and \(P_{c}\) denotes the net charging power at time \(t\). The net power follows the convention:
+- \(P_{c}>0\) : Charging mode
+- \(P_{c}<0\) : Discharging mode.
+
+The stored energy is subject to the following constraints:
+\[
+0 \leq E_{\text {battery }} \leq E_{\max } .
+\]
+
+\section*{B. 2 Exogenous Information}
+
+Figure 3 shows the time series of market prices and demand, illustrating the variability in exogenous information that affects the system dynamics.
+![](https://cdn.mathpix.com/cropped/2025_05_20_40e796df7e31c0d4a505g-5.jpg?height=413&width=773&top_left_y=1921&top_left_x=1104)
+
+Figure 3: Time series for market price and demand
+
+\section*{B. 3 Record of Battery Action and Storage Level}
+
+Figure 4 shows the time evolution of the battery's storage level (blue curve) alongside the corresponding charging and discharging actions (red curve).
+![](https://cdn.mathpix.com/cropped/2025_05_20_40e796df7e31c0d4a505g-6.jpg?height=405&width=778&top_left_y=524&top_left_x=229)
+
+Figure 4: Base Policy
+
+\section*{C Generative Model}
+
+\section*{C. 1 Task Generator}
+
+The Task Generator, implemented using DeepSeek-R1, receives system performance metrics and generates a high-level task descriptions for base-policy improvement. The prompt template is structured as follows:
+```
+You are an expert developing an intelligent battery
+    management system. Analyze the system performance
+    and provide strategic direction.
+Current Implementation:
+```python
+{code.content if code.success
+        else "Implementation failed"}
+Performance Data:
+- Battery levels: {battery_level_record}
+- Charge/discharge actions: {action_record}
+- Time-based costs: {cost_per_time_record}
+- Current total cost: {total_cost}
+- Historical total costs: {total_cost_record}
+Provide:
+1. Key performance insights (2-3 points)
+2. Strategic direction: continue or pivot
+3. High-level improvement areas
+```
+
+\section*{C. 2 Code Generator}
+
+The Code Generator, utilizing Qwen2.5 Coder 32B Instruct, translates the high-level task descriptions from task generator into executable Python code. The prompt structure is defined as:
+```
+You are an expert Python developer.
+Develop an intelligent battery management policy to
+    optimize energy costs while satisfying the
+    demand_sequence.
+The policy must make strategic decisions about:
+1. When to charge the battery (buy & store energy)
+2. When to discharge the battery (use stored energy)
+3. When to directly purchase from the market
+```
+```
+Key Constraints
+1. Battery Capacity:
+    - 0 <= energy_stored <= max_energy_stored
+    - Battery charge must stay within physical limits
+2. Energy Conservation:
+    - discharge <= energy_stored
+    - Cannot discharge more energy than stored
+3. Demand Coverage:
+    - market_buy + discharge >= own_demand
+    - Must meet energy demand_sequence in each timestep
+Structure example:
+{policy_signature} # Initially defined
+Implementation instructions:
+{task_description} # Created by Task Generator
+Provide the final implementation without Markdown
+    formatting or additional comments outside the class.
+```
+
+The Code Generator produces implementations that match the specified implementation signature from Appendix C.3. In the event of an error, the code of the existing base-policy is attempted to be corrected via an error prompt.
+```
+You are an expert Python developer debugging a battery
+    management system implementation.
+A BatteryPolicy implementation has failed in the
+    simulation environment with the following:
+Error Message:
+{error_message}
+Failed Code:
+{code }
+Task:
+Fix the implementation errors while maintaining the
+    original strategy where appropriate.
+Expected output structure:
+{policy_signature}
+Return only the corrected Policy class implementation
+    without markdown formatting or extra comments
+    outside the class.
+```
+
+\section*{C. 3 Python Function Signature for Policy Implementation}
+
+The following Python class Policy defines the function signature that will be invoked by the environment during the energy trading process. This signature is provided as a reference for the LLM to implement the take_action method.
+```
+class Policy:
+    def __init__(self, imported_energy, market_price,
+        cost):
+        """Initialize policy parameters and state
+        variables."""
+            self.imported_energy = imported_energy
+            self.market_price = market_price
+            self.cost = cost
+    def take_action(
+            self,
+            state_of_charge: float, # Current battery
+        charge [kWh]
+            imported_energy: float, # Current amount of
+        energy imported from the market [kWh]
+            market_price: float, # Current market price
+            euro/kWh]
+            cost: float # Current costs of
+    imported energy [\euro]
+    ) -> float:
+```
+```
+    Determine optimal energy trading action based on
+current state.
+    Returns:
+        float: Action variable for the battery [kWh]
+            Positive: charge amount
+            Negative: discharge amount
+    """
+    pass # Implementation to be provided by the LLM
+```
+
+Explanation: This Policy class serves as an interface for the energy management environment. The take_action method is designed to be called with the current state parameters, allowing the LLM to compute and return the optimal energy trading action.
+
+\section*{C. 4 Model Specification}
+
+The specifications presented in the following describe the interface of DeepSeek-R1 and Qwen2.5 Coder 32B Instruct as available via the OpenRouter API [1] at the time of publication. In addition, the number of tokens and the resulting costs of the experiment conducted are listed.
+
+Table 1: Technical Specifications of the DeepSeek R1 Interface via the OpenRouter API
+\begin{tabular}{|l|l|l|}
+\hline Parameter (tok \(\triangleq\) tokens) & Deepseek-R1 & Qwen2.5 Coder 32B Instruct \\
+\hline Context size [tok] & 64,000 & 33,000 \\
+\hline Maximum output size [tok] & 8,000 & 3,000 \\
+\hline Input cost [\$/M tok] & 0.55 & 0.007 \\
+\hline Output cost [\$/M tok] & 2.19 & 0.016 \\
+\hline Latency [sec] & 14.03 & 0.3 \\
+\hline Throughput [tok/sec] & 8.33 & 59.5 \\
+\hline Input tokens fed & 4,850 & 1784 \\
+\hline Output tokens generated & 1,535 & 762 \\
+\hline Total cost [\$] & 0.00603 & 0.000509 \\
+\hline
+\end{tabular}
