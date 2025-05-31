@@ -1,119 +1,151 @@
 // backend/routes/compare.js
+//
+// Brick-6 (simplified): only two modes
+//   • blank focus  → summary comparison (cached summaries)
+//   • non-blank    → generic question across full texts
+//
+// POST /api/projects/:projectId/compare
+// Body: { paths: string[], focus?: string, force?: boolean }
+//
+// Streams progress + final Markdown answer.
+//
 require('dotenv').config();
 
-const express          = require('express');
-const auth             = require('../middleware/auth');
-const { summarizePdf } = require('../services/paperSummarizer');
-const OpenAI           = require('openai');
+const express             = require('express');
+const auth                = require('../middleware/auth');
+
+const OpenAI              = require('openai');
+const fileService         = require('../services/fileService');
+const { convertPdfToMmd } = require('../services/mathpixService');
+const { summarizePdf }    = require('../services/paperSummarizer');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-/**
- * POST /api/projects/:projectId/compare
- * Body: {
- *   paths : string[]         // required – relative PDF paths
- *   focus : string           // optional – “methods”, “results”, etc.
- *   force : boolean          // optional – ignore cached summaries
- * }
- *
- * Streams:
- *   • per-paper progress lines
- *   • final Markdown comparison
- */
+/* ────────────────────────────────────────────────────────── */
+const BLANK_RE = /^\s*$/;
+
+/* ────────────────────────────────────────────────────────── */
 router.post('/:projectId/compare', auth, async (req, res) => {
   try {
-    const { projectId }                 = req.params;
-    const { paths = [], focus = 'overall comparison', force = false } = req.body || {};
+    /* ─── inputs ─── */
+    const { projectId } = req.params;
+    const { paths = [], focus = '', force = false } = req.body || {};
 
-    /* ───── Validation ───── */
     if (!Array.isArray(paths) || paths.length === 0) {
-      return res.status(400).json({ error: 'paths array is required' });
+      return res.status(400).json({ error: '`paths` array is required' });
     }
-    const MAX_PAPERS = 10;
-    if (paths.length > MAX_PAPERS) {
-      return res.status(400).json({ error: `Too many PDFs – limit is ${MAX_PAPERS}` });
+    if (paths.length > 10) {
+      return res.status(400).json({ error: 'Too many PDFs – limit is 10.' });
     }
 
-    /* ───── Streaming headers ───── */
+    const mode = BLANK_RE.test(focus) ? 'summary' : 'generic';
+
+    /* ─── streaming headers ─── */
     res.setHeader('Content-Type',  'text/plain; charset=UTF-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
 
-    /* ───── 1. Summarise each PDF ───── */
-    const summaries = [];
+    res.write(`Mode: ${mode}\n`);
+
+    /* ─── gather content ─── */
+    const papers = [];                    // { label, content }
+    const MAX_CHARS_EACH = 60_000;        // ~25k tokens – safety per doc
+    const MAX_TOTAL_CHARS = 180_000;      // overall guard
+
     for (let i = 0; i < paths.length; i++) {
       const label = `[P${i + 1}]`;
-      const p     = paths[i];
-      res.write(`🔍 Summarizing ${label} ${p} …\n`);
+      const rel   = paths[i];
+
+      res.write(`🔍 Processing ${label} ${rel} …\n`);
       try {
-        const summary = await summarizePdf(projectId, p, force);
-        summaries.push({ label, path: p, summary });
-        res.write(`✅ Summary for ${label} done\n`);
+        let content = '';
+
+        if (mode === 'summary') {
+          content = await summarizePdf(projectId, rel, force);       // Brick-1 cache
+        } else { // generic - use full Mathpix markdown
+          const mmdKey = `${projectId}/${rel}.mmd`;
+          let mmd;
+          try {
+            mmd = (await fileService.read(mmdKey)).toString('utf8');
+          } catch {
+            const pdfBuf = await fileService.read(`${projectId}/${rel}`);
+            mmd = await convertPdfToMmd(pdfBuf);
+            await fileService.write(mmdKey, Buffer.from(mmd, 'utf8'));
+          }
+
+          // soft truncate for context limits
+          content = mmd.length > MAX_CHARS_EACH ? mmd.slice(0, MAX_CHARS_EACH) : mmd;
+        }
+
+        papers.push({ label, content });
+        res.write(`✅ ${label} done\n`);
       } catch (err) {
-        res.write(`❌ Failed ${label}: ${err.message}\n`);
+        res.write(`❌ ${label} failed: ${err.message}\n`);
       }
     }
 
-    if (!summaries.length) {
-      res.write('\nNo summaries produced; aborting.\n');
+    if (!papers.length) {
+      res.write('\nNo usable inputs – aborting.\n');
       return res.end();
     }
 
-    /* ───── 2. Size guard ───── */
-    const TOTAL_CHARS = summaries.reduce((n, s) => n + s.summary.length, 0);
-    const MAX_CHARS   = 30_000;               // ~12k tokens safety
-    if (TOTAL_CHARS > MAX_CHARS) {
-      res.write(`⚠️ Combined summaries too large (${TOTAL_CHARS} chars). Please reduce the number of papers.\n`);
+    const totalChars = papers.reduce((n, p) => n + p.content.length, 0);
+    if (totalChars > MAX_TOTAL_CHARS) {
+      res.write(`⚠️ Combined size ${totalChars} chars exceeds limit (${MAX_TOTAL_CHARS}). Reduce paper count.\n`);
       return res.end();
     }
 
-    /* ───── 3. Build prompt ───── */
+    /* ─── build prompt ─── */
+    res.write('\n🧠 Generating analysis…\n\n');
+
     const systemMsg = {
       role: 'system',
       content:
-`You are a meticulous research assistant.
-Compare the studies ONLY with the provided summaries.
-Cite each paper with its label (e.g. [P1]) when making claims.
-Do NOT introduce information not present in the summaries.`
+`You are an expert research assistant.
+Base your answer ONLY on the content provided.
+Cite each paper as [P#]. Do NOT add external information.`
     };
 
     const userMsg = {
       role: 'user',
       content:
-`Focus: ${focus}
+`${mode === 'summary'
+  ? 'Provide a structured comparative report of the following papers.'
+  : `Focus / Question: ${focus.trim()}`}
 
-Summaries:
+Content:
 
-${summaries.map(s => `${s.label} ${s.summary}`).join('\n\n')}
+${papers.map(p => `${p.label}\n${p.content}`).join('\n\n')}
 
-Write a structured Markdown report with:
-- One-paragraph **overview** for each paper (labelled)
-- **Comparative Analysis** (agreements, differences, unique contributions)
+Write a **Markdown** report with:
+- One-paragraph **Overview** for each paper (labelled)
+- **Comparative Analysis** (agreements, differences, unique points)
+- Answer the focus/question explicitly (if not blank)
 - **Open Questions / Future Work** bullet list
 
-Remember to cite using [P#].`
+Always cite claims using [P#].`
     };
 
-    /* ───── 4. Stream GPT-4o synthesis ───── */
-    res.write('\n🧠 Generating comparative analysis…\n\n');
-
+    /* ─── stream GPT-4o ─── */
     const stream = await openai.chat.completions.create({
-      model   : 'gpt-4o',
-      stream  : true,
-      messages: [systemMsg, userMsg],
-      max_tokens : 1500,
-      temperature: 0.25,
+      model      : 'gpt-4o',
+      stream     : true,
+      messages   : [systemMsg, userMsg],
+      max_tokens : 1600,
+      temperature: 0.25
     });
 
     for await (const part of stream) {
-      const chunk = part.choices[0].delta.content;
-      if (chunk) res.write(chunk);
+      const txt = part.choices[0].delta.content;
+      if (txt) res.write(txt);
     }
-    return res.end();
+
+    res.end();
   } catch (err) {
     console.error('COMPARE ERROR:', err);
-    res.status(500).json({ error: err.message || 'Comparison failed' });
+    res.status(500).json({ error: err.message || 'Comparison failed.' });
   }
 });
 
