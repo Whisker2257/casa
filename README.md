@@ -1,4 +1,4 @@
-# Casa: AI-Powered Research & Writing Assistant
+# Casa: One IDE for LLM-powered academic research.
 
 **Casa** is your all‐in‐one, AI‐powered research copil​ot—an IDE that seamlessly blends literature discovery, coding, writing, and visualization into a single, AI‐first workspace. Spend less time hunting for papers, wrangling code, and formatting figures, and more time thinking.
 
