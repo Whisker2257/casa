@@ -94,7 +94,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
         - **Any non‐blank focus** → treat as a generic query: fetch **full text** of each PDF and send everything (plus the focus question) to a single GPT‐4 prompt. That way you can ask arbitrary cross‐paper questions (e.g. “Any common citations?”).  
         - In all cases, cached results (by hashing `<paths> + <focus>`) are stored under `Comparisons/<hash>.cmp.md`. A repeat request with identical inputs returns the cached file in ≤ 1 s.  
 
-   **Status**: ✅ Implemented (Bricks 1–8; see Roadmap below)
+   **Status**: (See Roadmap below)
 
 2. **Citation Cluster Insertion & BibTeX Update Pipeline**  
    - **Responsibilities**:  
@@ -157,7 +157,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
         - Append new BibTeX entries to `<project>.bib` (skipping duplicates).  
         - Insert the citation cluster at the selected location in the manuscript.  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 3. **Statistical Testing Assistant Pipeline**  
    - **Responsibilities**:  
@@ -208,7 +208,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
           • Conclusion: p < 0.05, so we reject H₀; there is a significant difference between the two groups.  
           ```  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 4. **Pseudocode‐to‐Code Generation Pipeline**  
    - **Responsibilities**: Translate pseudocode or algorithm descriptions into working source code (e.g. Python, Java).  
@@ -238,7 +238,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
      3. **Iterative Debug Loop** (optional):  
         - If the user asks “Run this,” Casa executes in a sandbox. If an error arises, capture the traceback and prompt GPT to fix. Repeat until the code runs or a maximum of 2–3 iterations.  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 5. **Inline LaTeX Completion & Academic Writing Pipeline**  
    - **Responsibilities**: Provide context‐aware completions and rewriting suggestions for LaTeX/Markdown documents (sentences, equations, citations).  
@@ -271,7 +271,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
         - The model returns only the continuation (no extra commentary).  
         - Casa inserts it at the cursor.  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 6. **AI‐Powered PDF Summarization & Section Extraction Pipeline**  
    - **Responsibilities**: Summarize entire PDFs (especially research papers) and extract or answer targeted queries about specific sections (e.g. “Methods,” “sample size,” “figure captions”).  
@@ -317,7 +317,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
    - **UI Integration**:  
      - PDF side panel, chat, or “Ask AI” overlay on open PDF.  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 7. **Semantic Search & Context Retrieval Pipeline**  
    - **Responsibilities**: Provide semantic search across all files (notes, PDFs, code, etc.) in a project. Retrieve relevant snippets or answer natural‐language queries using RAG.  
@@ -374,7 +374,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
    - **UI Integration**:  
      - Search bar, chat commands, or context‐aware “Find in Project” panel.  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 8. **Dataset Analysis & Visualization Helpers Pipeline**  
    - **Responsibilities**: Provide exploratory data analysis (EDA) and visualization support for tabular datasets (CSV, JSON). Generate summary stats, plots, and narrative interpretations.  
@@ -428,7 +428,7 @@ Casa is like Cursor for academic research—designed from the ground up to let y
    - **UI Integration**:  
      - “Data Inspector” panel, chat commands, notebook integration.  
 
-   **Status**: ✅ Implemented
+   **Status**: (See Roadmap below)
 
 ---
 
